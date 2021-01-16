@@ -9,6 +9,8 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.io.IOException;
+
 public class SetSkinCommand implements CommandExecutor {
 
     @Override
@@ -20,10 +22,10 @@ public class SetSkinCommand implements CommandExecutor {
 
         Player player = (Player) sender;
 
-        if (!player.hasPermission("stunningskins.setskin")) {
+/*        if (!player.hasPermission("stunningskins.setskin")) {
             player.sendMessage(TextUtil.format("&r&cYou do not have permission to execute this command!"));
             return false;
-        }
+        }*/
 
         if (args.length != 1) {
             player.sendMessage(TextUtil.format("&r&cYou have entered improper arguments to execute this command!"));
@@ -32,21 +34,23 @@ public class SetSkinCommand implements CommandExecutor {
 
         String target = args[0];
 
-        Player targeted = Bukkit.getPlayerExact(target);
+/*        Player targeted = Bukkit.getPlayerExact(target);
         if (targeted != null) {
             Bukkit.getScheduler().runTaskAsynchronously(StunningSkins.getInstance(), () -> this.changeSkin(SkinUtil.changeSkin(player, targeted), player));
             return true;
-        }
+        }*/
 
-        Bukkit.getScheduler().runTaskAsynchronously(StunningSkins.getInstance(), () -> this.changeSkin(SkinUtil.changeSkin(player, target), player));
+        Bukkit.getScheduler().runTaskAsynchronously(StunningSkins.getInstance(), () -> this.changeSkin(player, target));
         return true;
     }
 
-    private void changeSkin(boolean value, Player player) {
-        if (value) {
+    private void changeSkin(Player player, String target) {
+        try {
+            SkinUtil.changeSkin(player, target);
             player.sendMessage(TextUtil.format("&r&aYour skin has been changed!"));
-        } else {
-            player.sendMessage(TextUtil.format("&r&cAn internal error has occurred!"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            player.sendMessage(TextUtil.format("&r&c" + e.getMessage()));
         }
     }
 }

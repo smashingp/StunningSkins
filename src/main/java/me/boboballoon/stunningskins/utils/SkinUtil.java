@@ -8,6 +8,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.properties.PropertyMap;
 import me.boboballoon.stunningskins.StunningSkins;
+import me.boboballoon.stunningskins.exceptions.PlayerNotFoundException;
 import net.minecraft.server.v1_16_R3.EntityPlayer;
 import net.minecraft.server.v1_16_R3.PacketPlayOutPlayerInfo;
 import net.minecraft.server.v1_16_R3.PacketPlayOutRespawn;
@@ -34,24 +35,19 @@ public class SkinUtil {
      *
      * @param target   the player whose skin you're trying to change
      * @param username the username of the player whose skin you're trying to set the targets skin to
-     * @return a boolean that is true when the players skin was set successfully, false when an internal error occurred
      */
-    public static boolean changeSkin(Player target, String username) {
+    public static void changeSkin(Player target, String username) throws PlayerNotFoundException, IOException {
         URL url;
-        try {
-            url = new URL("https://api.mojang.com/users/profiles/minecraft/" + username + "?at=" + (System.currentTimeMillis() / 1000));
-        } catch (MalformedURLException e) {
-            return false;
-        }
+        url = new URL("https://api.mojang.com/users/profiles/minecraft/" + username + "?at=" + (System.currentTimeMillis() / 1000));
 
-        JsonObject player;
+        JsonObject player = null;
         try {
             player = getJson(url).getAsJsonObject();
-        } catch (IOException e) {
-            return false;
+        } catch (Exception e) {
+            throw new PlayerNotFoundException();
         }
 
-        return changeSkin(target, convert(player.get("id").getAsString()));
+        changeSkin(target, convert(player.get("id").getAsString()));
     }
 
     /**
@@ -59,23 +55,12 @@ public class SkinUtil {
      *
      * @param target the player whose skin you're trying to change
      * @param uuid   the uuid of the player whose skin you're trying to set the targets skin to
-     * @return a boolean that is true when the players skin was set successfully, false when an internal error occurred
      */
-    public static boolean changeSkin(Player target, UUID uuid) {
-        URL url;
-        try {
-            url = new URL("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString() + "?unsigned=false");
-        } catch (MalformedURLException e) {
-            return false;
-        }
+    public static void changeSkin(Player target, UUID uuid) throws IOException {
+        URL url = new URL("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid.toString() + "?unsigned=false");
 
         Gson gson = new GsonBuilder().create();
-        JsonElement properties;
-        try {
-            properties = getJson(url, gson).getAsJsonObject().get("properties");
-        } catch (IOException e) {
-            return false;
-        }
+        JsonElement properties = getJson(url, gson).getAsJsonObject().get("properties");
 
         Property skinData = gson.fromJson(String.valueOf(properties), Property[].class)[0];
 
@@ -83,27 +68,29 @@ public class SkinUtil {
         GameProfile profile = player.getProfile();
         PropertyMap propertyMap = profile.getProperties();
 
-        Property oldSkinData = propertyMap.get("textures").iterator().next();
-
-        if (!SKINNED_PLAYERS.containsKey(target.getUniqueId())) {
-            SKINNED_PLAYERS.put(target.getUniqueId(), oldSkinData);
+        Property oldSkinData = null;
+        if (!propertyMap.isEmpty()) {
+            oldSkinData = propertyMap.get("textures").iterator().next();
+            if (!SKINNED_PLAYERS.containsKey(target.getUniqueId())) {
+                SKINNED_PLAYERS.put(target.getUniqueId(), oldSkinData);
+            }
         }
+
         propertyMap.remove("textures", oldSkinData);
         propertyMap.put("textures", skinData);
 
         reloadPlayer(target);
 
-        return true;
     }
 
-    /**
+    /*
      * A method used to set the skin of a player using another player as a method of retrieving a skin (always fire async)
      *
      * @param target the player whose skin you're trying to change
      * @param skin   the player whose skin you're trying to set the targets skin to
      * @return a boolean that is true when the players skin was set successfully, false when an internal error occurred
      */
-    public static boolean changeSkin(Player target, Player skin) {
+/*    public static boolean changeSkin(Player target, Player skin) {
         EntityPlayer player = ((CraftPlayer) target).getHandle();
         EntityPlayer targeted = ((CraftPlayer) skin).getHandle();
         PropertyMap propertyMap = player.getProfile().getProperties();
@@ -120,7 +107,7 @@ public class SkinUtil {
         reloadPlayer(target);
 
         return true;
-    }
+    }*/
 
     /**
      * A method used to restore the skin of a player who has already changed their skin (always fire async)
@@ -201,17 +188,16 @@ public class SkinUtil {
      */
     private static UUID convert(String uuid) {
         if (uuid.length() == 32) {
-            StringBuilder builder = new StringBuilder(36);
-            builder.append(uuid, 0, 8);
-            builder.append('-');
-            builder.append(uuid, 8, 12);
-            builder.append('-');
-            builder.append(uuid, 12, 16);
-            builder.append('-');
-            builder.append(uuid, 16, 20);
-            builder.append('-');
-            builder.append(uuid, 20, 32);
-            return UUID.fromString(builder.toString());
+            String builder = uuid.substring(0, 8) +
+                    '-' +
+                    uuid.substring(8, 12) +
+                    '-' +
+                    uuid.substring(12, 16) +
+                    '-' +
+                    uuid.substring(16, 20) +
+                    '-' +
+                    uuid.substring(20, 32);
+            return UUID.fromString(builder);
         } else {
             return UUID.fromString(uuid);
         }
